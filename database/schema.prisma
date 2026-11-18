@@ -1,0 +1,850 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+  runtime  = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Workspace {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  timezone  String    @default("Asia/Tehran")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  settings            WorkspaceSettings? @relation("WorkspaceSettings_workspace")
+  membershipRows      Membership[]       @relation("Membership_workspace")
+  roleRows            Role[]             @relation("Role_workspace")
+  rolePermissionRows  RolePermission[]   @relation("RolePermission_workspace")
+  companyRows         Company[]          @relation("Company_workspace")
+  contactRows         Contact[]          @relation("Contact_workspace")
+  tagRows             Tag[]              @relation("Tag_workspace")
+  contactTagRows      ContactTag[]       @relation("ContactTag_workspace")
+  leadRows            Lead[]             @relation("Lead_workspace")
+  pipelineRows        Pipeline[]         @relation("Pipeline_workspace")
+  pipelineStageRows   PipelineStage[]    @relation("PipelineStage_workspace")
+  dealRows            Deal[]             @relation("Deal_workspace")
+  dealStageChangeRows DealStageChange[]  @relation("DealStageChange_workspace")
+  taskRows            Task[]             @relation("Task_workspace")
+  taskReminderRows    TaskReminder[]     @relation("TaskReminder_workspace")
+  calendarEventRows   CalendarEvent[]    @relation("CalendarEvent_workspace")
+  noteRows            Note[]             @relation("Note_workspace")
+  activityRows        Activity[]         @relation("Activity_workspace")
+  notificationRows    Notification[]     @relation("Notification_workspace")
+  smsTemplateRows     SmsTemplate[]      @relation("SmsTemplate_workspace")
+  smsSendRows         SmsSend[]          @relation("SmsSend_workspace")
+  smsMessageRows      SmsMessage[]       @relation("SmsMessage_workspace")
+  smsStatusEventRows  SmsStatusEvent[]   @relation("SmsStatusEvent_workspace")
+  workflowRows        Workflow[]         @relation("Workflow_workspace")
+  workflowVersionRows WorkflowVersion[]  @relation("WorkflowVersion_workspace")
+  workflowNodeRows    WorkflowNode[]     @relation("WorkflowNode_workspace")
+  workflowEdgeRows    WorkflowEdge[]     @relation("WorkflowEdge_workspace")
+  workflowRunRows     WorkflowRun[]      @relation("WorkflowRun_workspace")
+  workflowRunStepRows WorkflowRunStep[]  @relation("WorkflowRunStep_workspace")
+  auditLogRows        AuditLog[]         @relation("AuditLog_workspace")
+  outboxEventRows     OutboxEvent[]      @relation("OutboxEvent_workspace")
+
+  @@map("workspace")
+}
+
+model WorkspaceSettings {
+  workspaceId        String   @id @map("workspace_id") @db.Uuid
+  smsSenderDisplay   String   @default("") @map("sms_sender_display")
+  otpPreviewTemplate String   @default("کد-ورود") @map("otp_preview_template")
+  smsDemoQuota       Int      @default(250) @map("sms_demo_quota")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation("WorkspaceSettings_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("workspace_settings")
+}
+
+model UserAccount {
+  id         String    @id @default(uuid()) @db.Uuid
+  mobileE164 String    @unique @map("mobile_e164")
+  fullName   String    @map("full_name")
+  email      String?
+  disabledAt DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships Membership[]   @relation("Membership_user")
+  challenges  OtpChallenge[] @relation("OtpChallenge_user")
+  sessions    AuthSession[]  @relation("AuthSession_user")
+  passwordCredential PasswordCredential?
+
+  @@map("user_account")
+}
+
+model PasswordCredential {
+  userId String @id @map("user_id") @db.Uuid
+  hash   String @map("password_hash")
+  user   UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_credential")
+}
+
+model Membership {
+  id                   String   @id @default(uuid()) @db.Uuid
+  workspaceId          String   @map("workspace_id") @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  roleId               String   @map("role_id") @db.Uuid
+  statusCode           String   @default("active") @map("status_code")
+  notificationsEnabled Boolean  @default(true) @map("notifications_enabled")
+  taskAlertsEnabled    Boolean  @default(true) @map("task_alerts_enabled")
+  sessionsValidAfter   DateTime? @map("sessions_valid_after") @db.Timestamptz(3)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace     Workspace         @relation("Membership_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user          UserAccount       @relation("Membership_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  role          Role              @relation("Membership_role", fields: [workspaceId, roleId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  contacts      Contact[]         @relation("Contact_owner")
+  leads         Lead[]            @relation("Lead_owner")
+  deals         Deal[]            @relation("Deal_owner")
+  stageChanges  DealStageChange[] @relation("DealStageChange_actor")
+  tasks         Task[]            @relation("Task_assignee")
+  events        CalendarEvent[]   @relation("CalendarEvent_creator")
+  notes         Note[]            @relation("Note_author")
+  activities    Activity[]        @relation("Activity_actor")
+  notifications Notification[]    @relation("Notification_recipient")
+  smsSends      SmsSend[]         @relation("SmsSend_actor")
+  versions      WorkflowVersion[] @relation("WorkflowVersion_author")
+  runs          WorkflowRun[]     @relation("WorkflowRun_actor")
+  auditLogs     AuditLog[]        @relation("AuditLog_actor")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, userId])
+  @@index([userId, statusCode])
+  @@map("membership")
+}
+
+model Role {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  code        String
+  name        String
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace   Workspace        @relation("Role_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  memberships Membership[]     @relation("Membership_role")
+  grants      RolePermission[] @relation("RolePermission_role")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, code])
+  @@unique([workspaceId, name])
+  @@map("role")
+}
+
+model Permission {
+  code    String @id
+  labelFa String @map("label_fa")
+
+  grants RolePermission[] @relation("RolePermission_permission")
+
+  @@map("permission")
+}
+
+model RolePermission {
+  workspaceId    String @map("workspace_id") @db.Uuid
+  roleId         String @map("role_id") @db.Uuid
+  permissionCode String @map("permission_code")
+
+  workspace  Workspace  @relation("RolePermission_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  role       Role       @relation("RolePermission_role", fields: [workspaceId, roleId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  permission Permission @relation("RolePermission_permission", fields: [permissionCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([workspaceId, roleId, permissionCode])
+  @@map("role_permission")
+}
+
+model OtpChallenge {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  codeVerifier   Bytes     @map("code_verifier")
+  issuedAt       DateTime  @default(now()) @map("issued_at") @db.Timestamptz(3)
+  resendAfterAt  DateTime  @map("resend_after_at") @db.Timestamptz(3)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  invalidatedAt  DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  user UserAccount @relation("OtpChallenge_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, issuedAt])
+  @@index([expiresAt])
+  @@map("otp_challenge")
+}
+
+model AuthThrottle {
+  key       String   @id
+  count     Int
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("auth_throttle")
+}
+
+model AuthSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash Bytes     @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user UserAccount @relation("AuthSession_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, expiresAt])
+  @@map("auth_session")
+}
+
+model Company {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  name        String
+  searchKey   String    @map("search_key")
+  industry    String?
+  phone       String?
+  email       String?
+  website     String?
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace  Workspace  @relation("Company_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contacts   Contact[]  @relation("Contact_company")
+  leads      Lead[]     @relation("Lead_company")
+  deals      Deal[]     @relation("Deal_company")
+  notes      Note[]     @relation("Note_company")
+  activities Activity[] @relation("Activity_company")
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, name, id])
+  @@index([workspaceId, createdAt, id])
+  @@map("company")
+}
+
+model Contact {
+  id                String    @id @default(uuid()) @db.Uuid
+  workspaceId       String    @map("workspace_id") @db.Uuid
+  fullName          String    @map("full_name")
+  searchKey         String    @map("search_key")
+  mobileE164        String    @map("mobile_e164")
+  email             String?
+  companyId         String?   @map("company_id") @db.Uuid
+  ownerMembershipId String?   @map("owner_membership_id") @db.Uuid
+  jobTitle          String?   @map("job_title")
+  statusCode        String    @map("status_code")
+  sourceCode        String?   @map("source_code")
+  description       String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace      Workspace       @relation("Contact_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  company        Company?        @relation("Contact_company", fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  owner          Membership?     @relation("Contact_owner", fields: [workspaceId, ownerMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  convertedLeads Lead[]          @relation("Lead_convertedContact")
+  tags           ContactTag[]    @relation("ContactTag_contact")
+  deals          Deal[]          @relation("Deal_contact")
+  tasks          Task[]          @relation("Task_contact")
+  events         CalendarEvent[] @relation("CalendarEvent_contact")
+  notes          Note[]          @relation("Note_contact")
+  activities     Activity[]      @relation("Activity_contact")
+  messages       SmsMessage[]    @relation("SmsMessage_contact")
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, statusCode, createdAt, id])
+  @@index([workspaceId, companyId])
+  @@index([workspaceId, ownerMembershipId])
+  @@map("contact")
+}
+
+model Tag {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  name        String
+  nameKey     String   @map("name_key")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace Workspace    @relation("Tag_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contacts  ContactTag[] @relation("ContactTag_tag")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, nameKey])
+  @@map("tag")
+}
+
+model ContactTag {
+  workspaceId String @map("workspace_id") @db.Uuid
+  contactId   String @map("contact_id") @db.Uuid
+  tagId       String @map("tag_id") @db.Uuid
+
+  workspace Workspace @relation("ContactTag_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact   Contact   @relation("ContactTag_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  tag       Tag       @relation("ContactTag_tag", fields: [workspaceId, tagId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([workspaceId, contactId, tagId])
+  @@index([workspaceId, tagId])
+  @@map("contact_tag")
+}
+
+model Lead {
+  id                 String    @id @default(uuid()) @db.Uuid
+  workspaceId        String    @map("workspace_id") @db.Uuid
+  fullName           String    @map("full_name")
+  searchKey          String    @map("search_key")
+  mobileE164         String    @map("mobile_e164")
+  email              String?
+  companyId          String?   @map("company_id") @db.Uuid
+  ownerMembershipId  String?   @map("owner_membership_id") @db.Uuid
+  sourceCode         String?   @map("source_code")
+  statusCode         String    @default("new") @map("status_code")
+  score              Int       @default(0)
+  lastFollowUpOn     DateTime? @map("last_follow_up_on") @db.Date
+  description        String?
+  convertedContactId String?   @map("converted_contact_id") @db.Uuid
+  convertedAt        DateTime? @map("converted_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace        Workspace   @relation("Lead_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  company          Company?    @relation("Lead_company", fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  owner            Membership? @relation("Lead_owner", fields: [workspaceId, ownerMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  convertedContact Contact?    @relation("Lead_convertedContact", fields: [workspaceId, convertedContactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  activities       Activity[]  @relation("Activity_lead")
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, statusCode, createdAt, id])
+  @@index([workspaceId, ownerMembershipId])
+  @@map("lead")
+}
+
+model Pipeline {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  name        String
+  isDefault   Boolean   @default(false) @map("is_default")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace       @relation("Pipeline_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  deals     Deal[]          @relation("Deal_pipeline")
+  stages    PipelineStage[] @relation("PipelineStage_pipeline")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, name])
+  @@map("pipeline")
+}
+
+model PipelineStage {
+  id                 String    @id @default(uuid()) @db.Uuid
+  workspaceId        String    @map("workspace_id") @db.Uuid
+  pipelineId         String    @map("pipeline_id") @db.Uuid
+  code               String
+  name               String
+  kind               String
+  sortOrder          Int       @map("sort_order")
+  defaultProbability Int       @map("default_probability")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace         @relation("PipelineStage_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  pipeline  Pipeline          @relation("PipelineStage_pipeline", fields: [workspaceId, pipelineId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  deals     Deal[]            @relation("Deal_stage")
+  movesFrom DealStageChange[] @relation("DealStageChange_fromStage")
+  movesTo   DealStageChange[] @relation("DealStageChange_toStage")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, pipelineId, id])
+  @@unique([workspaceId, pipelineId, code])
+  @@unique([workspaceId, pipelineId, sortOrder])
+  @@map("pipeline_stage")
+}
+
+model Deal {
+  id                String    @id @default(uuid()) @db.Uuid
+  workspaceId       String    @map("workspace_id") @db.Uuid
+  name              String
+  searchKey         String    @map("search_key")
+  companyId         String?   @map("company_id") @db.Uuid
+  contactId         String?   @map("contact_id") @db.Uuid
+  ownerMembershipId String?   @map("owner_membership_id") @db.Uuid
+  pipelineId        String    @map("pipeline_id") @db.Uuid
+  stageId           String    @map("stage_id") @db.Uuid
+  amountToman       Decimal   @map("amount_toman") @db.Decimal(20, 0)
+  probabilityPct    Int       @map("probability_pct")
+  expectedCloseOn   DateTime? @map("expected_close_on") @db.Date
+  wonAt             DateTime? @map("won_at") @db.Timestamptz(3)
+  description       String?
+  rowVersion        Int       @default(1) @map("row_version")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace    Workspace         @relation("Deal_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  company      Company?          @relation("Deal_company", fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  owner        Membership?       @relation("Deal_owner", fields: [workspaceId, ownerMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  contact      Contact?          @relation("Deal_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  pipeline     Pipeline          @relation("Deal_pipeline", fields: [workspaceId, pipelineId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  stage        PipelineStage     @relation("Deal_stage", fields: [workspaceId, pipelineId, stageId], references: [workspaceId, pipelineId, id], onDelete: Restrict, onUpdate: Restrict)
+  stageChanges DealStageChange[] @relation("DealStageChange_deal")
+  activities   Activity[]        @relation("Activity_deal")
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, pipelineId, stageId, createdAt])
+  @@index([workspaceId, wonAt])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, companyId])
+  @@index([workspaceId, ownerMembershipId])
+  @@map("deal")
+}
+
+model DealStageChange {
+  id                    String   @id @default(uuid()) @db.Uuid
+  workspaceId           String   @map("workspace_id") @db.Uuid
+  dealId                String   @map("deal_id") @db.Uuid
+  fromStageId           String?  @map("from_stage_id") @db.Uuid
+  toStageId             String   @map("to_stage_id") @db.Uuid
+  changedByMembershipId String?  @map("changed_by_membership_id") @db.Uuid
+  changedAt             DateTime @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  workspace Workspace      @relation("DealStageChange_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  deal      Deal           @relation("DealStageChange_deal", fields: [workspaceId, dealId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  fromStage PipelineStage? @relation("DealStageChange_fromStage", fields: [workspaceId, fromStageId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  toStage   PipelineStage  @relation("DealStageChange_toStage", fields: [workspaceId, toStageId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  actor     Membership?    @relation("DealStageChange_actor", fields: [workspaceId, changedByMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, dealId, changedAt])
+  @@map("deal_stage_change")
+}
+
+model Task {
+  id                   String    @id @default(uuid()) @db.Uuid
+  workspaceId          String    @map("workspace_id") @db.Uuid
+  name                 String
+  searchKey            String    @map("search_key")
+  contactId            String?   @map("contact_id") @db.Uuid
+  assigneeMembershipId String    @map("assignee_membership_id") @db.Uuid
+  priorityCode         String    @map("priority_code")
+  statusCode           String    @map("status_code")
+  dueDate              DateTime  @map("due_date") @db.Date
+  dueTime              DateTime? @map("due_time") @db.Time(0)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(3)
+  description          String?
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace  Workspace     @relation("Task_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact    Contact?      @relation("Task_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  assignee   Membership    @relation("Task_assignee", fields: [workspaceId, assigneeMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  reminder   TaskReminder? @relation("TaskReminder_task")
+  activities Activity[]    @relation("Activity_task")
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, assigneeMembershipId, statusCode, dueDate, id])
+  @@index([workspaceId, dueDate])
+  @@map("task")
+}
+
+model TaskReminder {
+  id            String   @id @default(uuid()) @db.Uuid
+  workspaceId   String   @map("workspace_id") @db.Uuid
+  taskId        String   @map("task_id") @db.Uuid
+  offsetMinutes Int      @map("offset_minutes")
+  scheduledAt   DateTime @map("scheduled_at") @db.Timestamptz(3)
+  statusCode    String   @default("pending") @map("status_code")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace    Workspace     @relation("TaskReminder_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  task         Task          @relation("TaskReminder_task", fields: [workspaceId, taskId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  notification Notification? @relation("Notification_reminder")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, taskId])
+  @@index([workspaceId, statusCode, scheduledAt])
+  @@map("task_reminder")
+}
+
+model CalendarEvent {
+  id                    String    @id @default(uuid()) @db.Uuid
+  workspaceId           String    @map("workspace_id") @db.Uuid
+  name                  String
+  typeCode              String    @map("type_code")
+  eventDate             DateTime  @map("event_date") @db.Date
+  startTime             DateTime? @map("start_time") @db.Time(0)
+  contactId             String?   @map("contact_id") @db.Uuid
+  createdByMembershipId String?   @map("created_by_membership_id") @db.Uuid
+  description           String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace   @relation("CalendarEvent_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact   Contact?    @relation("CalendarEvent_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  creator   Membership? @relation("CalendarEvent_creator", fields: [workspaceId, createdByMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, eventDate, id])
+  @@map("calendar_event")
+}
+
+model Note {
+  id                 String   @id @default(uuid()) @db.Uuid
+  workspaceId        String   @map("workspace_id") @db.Uuid
+  text               String
+  contactId          String?  @map("contact_id") @db.Uuid
+  companyId          String?  @map("company_id") @db.Uuid
+  authorMembershipId String   @map("author_membership_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace Workspace  @relation("Note_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contact   Contact?   @relation("Note_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  company   Company?   @relation("Note_company", fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  author    Membership @relation("Note_author", fields: [workspaceId, authorMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  activity  Activity?  @relation("Activity_note")
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, contactId, createdAt])
+  @@index([workspaceId, companyId, createdAt])
+  @@map("note")
+}
+
+model Activity {
+  id                String    @id @default(uuid()) @db.Uuid
+  workspaceId       String    @map("workspace_id") @db.Uuid
+  name              String
+  searchKey         String    @map("search_key")
+  description       String?
+  kindCode          String    @map("kind_code")
+  occurredAt        DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  actorMembershipId String?   @map("actor_membership_id") @db.Uuid
+  companyId         String?   @map("company_id") @db.Uuid
+  contactId         String?   @map("contact_id") @db.Uuid
+  dealId            String?   @map("deal_id") @db.Uuid
+  leadId            String?   @map("lead_id") @db.Uuid
+  taskId            String?   @map("task_id") @db.Uuid
+  noteId            String?   @map("note_id") @db.Uuid
+  isSystem          Boolean   @default(false) @map("is_system")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace   @relation("Activity_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  company   Company?    @relation("Activity_company", fields: [workspaceId, companyId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  contact   Contact?    @relation("Activity_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  deal      Deal?       @relation("Activity_deal", fields: [workspaceId, dealId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  lead      Lead?       @relation("Activity_lead", fields: [workspaceId, leadId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  task      Task?       @relation("Activity_task", fields: [workspaceId, taskId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  note      Note?       @relation("Activity_note", fields: [workspaceId, noteId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  actor     Membership? @relation("Activity_actor", fields: [workspaceId, actorMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, noteId])
+  @@index([workspaceId, contactId, occurredAt])
+  @@index([workspaceId, companyId, occurredAt])
+  @@index([workspaceId, occurredAt, id])
+  @@map("activity")
+}
+
+model Notification {
+  id                    String    @id @default(uuid()) @db.Uuid
+  workspaceId           String    @map("workspace_id") @db.Uuid
+  recipientMembershipId String    @map("recipient_membership_id") @db.Uuid
+  taskReminderId        String?   @map("task_reminder_id") @db.Uuid
+  name                  String
+  body                  String?
+  kindCode              String    @map("kind_code")
+  readAt                DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace Workspace     @relation("Notification_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recipient Membership    @relation("Notification_recipient", fields: [workspaceId, recipientMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  reminder  TaskReminder? @relation("Notification_reminder", fields: [workspaceId, taskReminderId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, taskReminderId])
+  @@index([workspaceId, recipientMembershipId, createdAt])
+  @@map("notification")
+}
+
+model SmsTemplate {
+  id           String    @id @default(uuid()) @db.Uuid
+  workspaceId  String    @map("workspace_id") @db.Uuid
+  name         String
+  bodyTemplate String    @map("body_template")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation("SmsTemplate_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sends     SmsSend[] @relation("SmsSend_template")
+
+  @@unique([workspaceId, id])
+  @@map("sms_template")
+}
+
+model SmsSend {
+  id                      String   @id @default(uuid()) @db.Uuid
+  workspaceId             String   @map("workspace_id") @db.Uuid
+  templateId              String?  @map("template_id") @db.Uuid
+  requestedByMembershipId String?  @map("requested_by_membership_id") @db.Uuid
+  workflowRunStepId       String?  @map("workflow_run_step_id") @db.Uuid
+  sourceCode              String   @map("source_code")
+  modeCode                String   @default("simulation") @map("mode_code")
+  messageTypeCode         String   @map("message_type_code")
+  idempotencyKey          String   @map("idempotency_key")
+  requestHash             String   @map("request_hash")
+  requestedAt             DateTime @default(now()) @map("requested_at") @db.Timestamptz(3)
+
+  workspace Workspace        @relation("SmsSend_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  template  SmsTemplate?     @relation("SmsSend_template", fields: [workspaceId, templateId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  actor     Membership?      @relation("SmsSend_actor", fields: [workspaceId, requestedByMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  step      WorkflowRunStep? @relation("SmsSend_step", fields: [workspaceId, workflowRunStepId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  messages  SmsMessage[]     @relation("SmsMessage_send")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, requestedAt, id])
+  @@map("sms_send")
+}
+
+model SmsMessage {
+  id                    String    @id @default(uuid()) @db.Uuid
+  workspaceId           String    @map("workspace_id") @db.Uuid
+  sendId                String    @map("send_id") @db.Uuid
+  contactId             String?   @map("contact_id") @db.Uuid
+  recipientMobileE164   String    @map("recipient_mobile_e164")
+  recipientNameSnapshot String?   @map("recipient_name_snapshot")
+  renderedBody          String    @map("rendered_body")
+  unitCount             Int       @map("unit_count")
+  statusCode            String    @default("queued") @map("status_code")
+  providerCode          String?   @map("provider_code")
+  providerAccountRef    String?   @map("provider_account_ref")
+  providerMessageRef    String?   @map("provider_message_ref")
+  attemptCount          Int       @default(0) @map("attempt_count")
+  sentAt                DateTime? @map("sent_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace    Workspace        @relation("SmsMessage_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  send         SmsSend          @relation("SmsMessage_send", fields: [workspaceId, sendId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  contact      Contact?         @relation("SmsMessage_contact", fields: [workspaceId, contactId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  statusEvents SmsStatusEvent[] @relation("SmsStatusEvent_message")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, sendId, recipientMobileE164])
+  @@index([workspaceId, statusCode, createdAt])
+  @@map("sms_message")
+}
+
+model SmsStatusEvent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  workspaceId        String   @map("workspace_id") @db.Uuid
+  messageId          String   @map("message_id") @db.Uuid
+  statusCode         String   @map("status_code")
+  providerCode       String?  @map("provider_code")
+  providerAccountRef String?  @map("provider_account_ref")
+  providerEventRef   String?  @map("provider_event_ref")
+  attemptNo          Int?     @map("attempt_no")
+  occurredAt         DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  workspace Workspace  @relation("SmsStatusEvent_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  message   SmsMessage @relation("SmsStatusEvent_message", fields: [workspaceId, messageId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([providerCode, providerAccountRef, providerEventRef])
+  @@index([workspaceId, messageId, occurredAt])
+  @@map("sms_status_event")
+}
+
+model Workflow {
+  id              String    @id @default(uuid()) @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  name            String
+  description     String?
+  searchKey       String    @map("search_key")
+  activeVersionId String?   @map("active_version_id") @db.Uuid
+  nextRunAt       DateTime? @map("next_run_at") @db.Timestamptz(3)
+  rowVersion      Int       @default(1) @map("row_version")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  workspace     Workspace         @relation("Workflow_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  versions      WorkflowVersion[] @relation("WorkflowVersion_workflow")
+  activeVersion WorkflowVersion?  @relation("Workflow_activeVersion", fields: [workspaceId, id, activeVersionId], references: [workspaceId, workflowId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, nextRunAt])
+  @@map("workflow")
+}
+
+model WorkflowVersion {
+  id                    String   @id @default(uuid()) @db.Uuid
+  workspaceId           String   @map("workspace_id") @db.Uuid
+  workflowId            String   @map("workflow_id") @db.Uuid
+  revisionNo            Int      @map("revision_no")
+  createdByMembershipId String?  @map("created_by_membership_id") @db.Uuid
+  triggerCode           String?  @map("trigger_code")
+  isDraft               Boolean  @default(false) @map("is_draft")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace Workspace      @relation("WorkflowVersion_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  workflow  Workflow       @relation("WorkflowVersion_workflow", fields: [workspaceId, workflowId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  author    Membership?    @relation("WorkflowVersion_author", fields: [workspaceId, createdByMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  activeFor Workflow[]     @relation("Workflow_activeVersion")
+  nodes     WorkflowNode[] @relation("WorkflowNode_version")
+  edges     WorkflowEdge[] @relation("WorkflowEdge_version")
+  runs      WorkflowRun[]  @relation("WorkflowRun_version")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, workflowId, id])
+  @@unique([workspaceId, workflowId, revisionNo])
+  @@index([workspaceId, triggerCode])
+  @@map("workflow_version")
+}
+
+model WorkflowNode {
+  workspaceId   String @map("workspace_id") @db.Uuid
+  versionId     String @map("version_id") @db.Uuid
+  nodeId        String @map("node_id") @db.Uuid
+  kind          String
+  operationCode String @map("operation_code")
+  config        Json
+  positionX     Float  @map("position_x")
+  positionY     Float  @map("position_y")
+
+  workspace Workspace         @relation("WorkflowNode_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version   WorkflowVersion   @relation("WorkflowNode_version", fields: [workspaceId, versionId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  outgoing  WorkflowEdge[]    @relation("WorkflowEdge_source")
+  incoming  WorkflowEdge[]    @relation("WorkflowEdge_target")
+  steps     WorkflowRunStep[] @relation("WorkflowRunStep_node")
+
+  @@id([workspaceId, versionId, nodeId])
+  @@map("workflow_node")
+}
+
+model WorkflowEdge {
+  id           String @id @default(uuid()) @db.Uuid
+  workspaceId  String @map("workspace_id") @db.Uuid
+  versionId    String @map("version_id") @db.Uuid
+  sourceNodeId String @map("source_node_id") @db.Uuid
+  targetNodeId String @map("target_node_id") @db.Uuid
+  branchCode   String @default("next") @map("branch_code")
+
+  workspace Workspace       @relation("WorkflowEdge_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version   WorkflowVersion @relation("WorkflowEdge_version", fields: [workspaceId, versionId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  source    WorkflowNode    @relation("WorkflowEdge_source", fields: [workspaceId, versionId, sourceNodeId], references: [workspaceId, versionId, nodeId], onDelete: Restrict, onUpdate: Restrict)
+  target    WorkflowNode    @relation("WorkflowEdge_target", fields: [workspaceId, versionId, targetNodeId], references: [workspaceId, versionId, nodeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, versionId, sourceNodeId, targetNodeId, branchCode])
+  @@map("workflow_edge")
+}
+
+model WorkflowRun {
+  id                    String    @id @default(uuid()) @db.Uuid
+  workspaceId           String    @map("workspace_id") @db.Uuid
+  versionId             String    @map("version_id") @db.Uuid
+  startedByMembershipId String?   @map("started_by_membership_id") @db.Uuid
+  modeCode              String    @map("mode_code")
+  stateCode             String    @map("state_code")
+  runKey                String    @map("run_key")
+  scenario              Json
+  startedAt             DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt               DateTime? @map("ended_at") @db.Timestamptz(3)
+  scheduledFor          DateTime? @map("scheduled_for") @db.Timestamptz(3)
+
+  workspace Workspace         @relation("WorkflowRun_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version   WorkflowVersion   @relation("WorkflowRun_version", fields: [workspaceId, versionId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  actor     Membership?       @relation("WorkflowRun_actor", fields: [workspaceId, startedByMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+  steps     WorkflowRunStep[] @relation("WorkflowRunStep_run")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, versionId, id])
+  @@unique([workspaceId, runKey])
+  @@index([workspaceId, versionId, startedAt])
+  @@index([workspaceId, startedAt])
+  @@map("workflow_run")
+}
+
+model WorkflowRunStep {
+  id            String    @id @default(uuid()) @db.Uuid
+  workspaceId   String    @map("workspace_id") @db.Uuid
+  runId         String    @map("run_id") @db.Uuid
+  versionId     String    @map("version_id") @db.Uuid
+  nodeId        String?   @map("node_id") @db.Uuid
+  sequenceNo    Int       @map("sequence_no")
+  effectKey     String    @map("effect_key")
+  outcomeCode   String    @map("outcome_code")
+  message       String?
+  attemptCount  Int       @default(0) @map("attempt_count")
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  leaseUntil    DateTime? @map("lease_until") @db.Timestamptz(3)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  workspace Workspace     @relation("WorkflowRunStep_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  smsSends  SmsSend[]     @relation("SmsSend_step")
+  run       WorkflowRun   @relation("WorkflowRunStep_run", fields: [workspaceId, versionId, runId], references: [workspaceId, versionId, id], onDelete: Restrict, onUpdate: Restrict)
+  node      WorkflowNode? @relation("WorkflowRunStep_node", fields: [workspaceId, versionId, nodeId], references: [workspaceId, versionId, nodeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, runId, sequenceNo])
+  @@unique([workspaceId, effectKey])
+  @@index([workspaceId, outcomeCode, nextAttemptAt])
+  @@map("workflow_run_step")
+}
+
+model AuditLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  workspaceId       String   @map("workspace_id") @db.Uuid
+  actorMembershipId String?  @map("actor_membership_id") @db.Uuid
+  action            String
+  targetType        String   @map("target_type")
+  targetId          String?  @map("target_id")
+  requestId         String   @map("request_id")
+  resultCode        String   @map("result_code")
+  occurredAt        DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  workspace Workspace   @relation("AuditLog_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor     Membership? @relation("AuditLog_actor", fields: [workspaceId, actorMembershipId], references: [workspaceId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, occurredAt])
+  @@map("audit_log")
+}
+
+model OutboxEvent {
+  id           String    @id @default(uuid()) @db.Uuid
+  workspaceId  String    @map("workspace_id") @db.Uuid
+  kind         String
+  eventKey     String    @map("event_key")
+  payload      Json
+  availableAt  DateTime  @default(now()) @map("available_at") @db.Timestamptz(3)
+  attemptCount Int       @default(0) @map("attempt_count")
+  leaseUntil   DateTime? @map("lease_until") @db.Timestamptz(3)
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz(3)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(3)
+  failedAt     DateTime? @map("failed_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation("OutboxEvent_workspace", fields: [workspaceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, eventKey])
+  @@index([workspaceId, availableAt, completedAt])
+  @@map("outbox_event")
+}
